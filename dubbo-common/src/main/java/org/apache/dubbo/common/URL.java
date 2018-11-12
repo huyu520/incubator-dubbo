@@ -26,14 +26,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -64,28 +57,51 @@ import java.util.concurrent.ConcurrentHashMap;
  * <li>home/user1/router.js?type=script <br>
  * for this case, url protocol = null, url host = home, url path = user1/router.js
  * </ul>
+ * <p>
+ * <p>
+ * protocol://username:password@host:port/path?key=value&key=value
  *
  * @see java.net.URL
  * @see java.net.URI
  */
-public /**final**/ class URL implements Serializable {
+public /**final**/
+class URL implements Serializable {
+
+    /**
+     * dubbo://10.1.21.246:20880/com.dfire.soa.consumer.service.IThirdOauthService?accesslog=/opt/logs/jetty/consumer_soa/access.log&anyhost=true&application=consumer-soa&default.cluster=failfast&default.delay=-1&default.loadbalance=leastactive&default.retries=0&default.threadpool=fixed&default.threads=400&default.timeout=5000&delay=-1&dubbo=2.6.3&generic=false&interface=com.dfire.soa.consumer.service.IThirdOauthService&logger=slf4j&methods=oauthToThirdPlatform,oauthForTrainSeatCode&pid=18125&revision=2.3.70&side=provider×tamp=1541572004909&uptime=1541572004912&version=1.0.0
+     */
 
     private static final long serialVersionUID = -1985165475234910535L;
 
+    /**
+     * 协议名
+     */
     private final String protocol;
-
+    /**
+     * 用户名
+     */
     private final String username;
-
+    /**
+     * 密码
+     */
     private final String password;
-
-    // by default, host to registry
+    /**
+     * by default, host to registry
+     * 地址
+     */
     private final String host;
-
-    // by default, port to registry
+    /**
+     * by default, port to registry
+     * 端口
+     */
     private final int port;
-
+    /**
+     * 路径（服务名）
+     */
     private final String path;
-
+    /**
+     * 参数集合
+     */
     private final Map<String, String> parameters;
 
     // ==== cache ====
@@ -246,7 +262,7 @@ public /**final**/ class URL implements Serializable {
                 // see https://howdoesinternetwork.com/2013/ipv6-zone-id
                 // ignore
             } else {
-                port = Integer.parseInt(url.substring(i+1));
+                port = Integer.parseInt(url.substring(i + 1));
                 url = url.substring(0, i);
             }
         }
@@ -321,7 +337,7 @@ public /**final**/ class URL implements Serializable {
 
     /**
      * Fetch IP address for this URL.
-     *
+     * <p>
      * Pls. note that IP should be used instead of Host when to compare with socket's address or to search in a map
      * which use address as its key.
      *
@@ -1160,6 +1176,13 @@ public /**final**/ class URL implements Serializable {
         return buf.toString();
     }
 
+    /**
+     * 构造参数（key=value&key=value）
+     *
+     * @param buf
+     * @param concat
+     * @param parameters
+     */
     private void buildParameters(StringBuilder buf, boolean concat, String[] parameters) {
         if (getParameters() != null && getParameters().size() > 0) {
             List<String> includes = (parameters == null || parameters.length == 0 ? null : Arrays.asList(parameters));
@@ -1187,6 +1210,17 @@ public /**final**/ class URL implements Serializable {
         return buildString(appendUser, appendParameter, false, false, parameters);
     }
 
+    /**
+     * @param appendUser
+     * @param appendParameter
+     * @param useIP
+     * @param useService
+     * @param parameters
+     * @return
+     * @eg dubbo://192.168.3.17:20880/com.alibaba.dubbo.demo.DemoService?anyhost=true&application=demo-provider&default.delay=-1&default.retries=0&default.service.filter=demoFilter&delay=-1&dubbo=2.0.0&generic=false&interface=com.alibaba.dubbo.demo.DemoService&methods=sayHello&pid=19031&side=provider&timestamp=1519651641799
+     * <p>
+     * build service url
+     */
     private String buildString(boolean appendUser, boolean appendParameter, boolean useIP, boolean useService, String... parameters) {
         StringBuilder buf = new StringBuilder();
         if (protocol != null && protocol.length() > 0) {
