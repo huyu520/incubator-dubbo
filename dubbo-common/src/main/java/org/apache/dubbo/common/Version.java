@@ -133,6 +133,8 @@ public final class Version {
                 CodeSource codeSource = cls.getProtectionDomain().getCodeSource();
                 if (codeSource == null) {
                     logger.info("No codeSource for class " + cls.getName() + " when getVersion, use default version " + defaultVersion);
+
+                    //若获取不到，从 jar 包命名中可能带的版本号作为结果。例如上面的例子，1.5.10.RELEASE
                 } else {
                     String file = codeSource.getLocation().getFile();
                     if (file != null && file.length() > 0 && file.endsWith(".jar")) {
