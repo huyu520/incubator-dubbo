@@ -1,0 +1,2 @@
+org.apache.dubbo.test.spi.service.impl.DubboService1
+org.apache.dubbo.test.spi.service.impl.DubboService2
