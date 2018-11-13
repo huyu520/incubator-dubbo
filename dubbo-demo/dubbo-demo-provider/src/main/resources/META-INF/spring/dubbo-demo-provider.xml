@@ -28,7 +28,7 @@
    <!-- <dubbo:registry address="multicast://224.5.6.7:1234"/>-->
 
     <!--本地zookeeper-->
-    <dubbo:registry address="zookeeper://127.0.0.1:2181"/>
+    <dubbo:registry address="zookeeper://zk1.2dfire-daily.com:2181?backup=zk2.2dfire-daily.com:2181,zk3.2dfire-daily.com:2181"/>
 
     <!-- use dubbo protocol to export service on port 20880 -->
     <dubbo:protocol name="dubbo" port="20880"/>

@@ -64,6 +64,9 @@ public class InvokerInvocationHandler implements InvocationHandler {
             invocation = new RpcInvocation(method, args);
             if (RpcUtils.hasFutureReturnType(method)) {
                 invocation.setAttachment(Constants.FUTURE_RETURNTYPE_KEY, "true");
+                /**
+                 *  异步
+                 */
                 invocation.setAttachment(Constants.ASYNC_KEY, "true");
             }
         }

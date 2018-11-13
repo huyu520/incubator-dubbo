@@ -61,6 +61,12 @@ public abstract class AbstractConfig implements Serializable {
 
     private static final Pattern PATTERN_KEY = Pattern.compile("[*,\\-._0-9a-zA-Z]+");
     private static final Map<String, String> legacyProperties = new HashMap<String, String>();
+
+    /**
+     * :  * 配置类名的后缀
+     * :  * 例如，ServiceConfig 后缀为 Config；ServiceBean 后缀为 Bean。
+     * :
+     */
     private static final String[] SUFFIXES = new String[]{"Config", "Bean"};
 
     static {
@@ -90,19 +96,31 @@ public abstract class AbstractConfig implements Serializable {
         return value;
     }
 
+    /**
+     * 在 Dubbo 官方用户手册的“属性配置”章节中，dubbo.properties 配置属性能够映射到 ApplicationConfig 、ProtocolConfig 以及 RegistryConfig 的字段。从某种意义上来说，dubbo.properties 也是 Dubbo 的外部化配置。
+     *
+     * @param config
+     */
     protected static void appendProperties(AbstractConfig config) {
         if (config == null) {
             return;
         }
         String prefix = "dubbo." + getTagName(config.getClass()) + ".";
+        //获得配置类的所有方法，用于下面通过反射获得配置项的属性名，再用属性名，去读取启动参数变量和 properties 配置到配置对象。
         Method[] methods = config.getClass().getMethods();
         for (Method method : methods) {
             try {
                 String name = method.getName();
+                // 方法是 public 的 setting 方法。
                 if (name.length() > 3 && name.startsWith("set") && Modifier.isPublic(method.getModifiers())
                         && method.getParameterTypes().length == 1 && isPrimitive(method.getParameterTypes()[0])) {
+                    // 获得属性名，例如 `ApplicationConfig#setName(...)` 方法，对应的属性名为 name 。
+                    //abCdEF --> ab-cd-ef 驼峰命名转换 - 分割
+                    /*对set方法的属性名称进行转换，让其都转换为小写字母，如果其中有驼峰命名的则使用中横线连接，如：setNaMe 则会变成na-me*/
                     String property = StringUtils.camelToSplitName(name.substring(3, 4).toLowerCase() + name.substring(4), ".");
+                    // 【启动参数变量】优先从带有 `Config#id` 的配置中获取，例如：`dubbo.application.demo-provider.name` 。
 
+                    //优先从【启动参数变量】获取配置项的值。
                     String value = null;
                     if (config.getId() != null && config.getId().length() > 0) {
                         String pn = prefix + config.getId() + "." + property;
@@ -119,6 +137,7 @@ public abstract class AbstractConfig implements Serializable {
                         }
                     }
                     if (value == null || value.length() == 0) {
+                        // 覆盖优先级为：启动参数变量 > XML 配置 > properties 配置，因此需要使用 getter 判断 XML 是否已经设置
                         Method getter;
                         try {
                             getter = config.getClass().getMethod("get" + name.substring(3));
@@ -130,13 +149,17 @@ public abstract class AbstractConfig implements Serializable {
                             }
                         }
                         if (getter != null) {
+                            // 使用 getter 判断 XML 是否已经设置
                             if (getter.invoke(config) == null) {
+                                // 【properties 配置】优先从带有 `Config#id` 的配置中获取，例如：`dubbo.application.demo-provider.name`
                                 if (config.getId() != null && config.getId().length() > 0) {
                                     value = ConfigUtils.getProperty(prefix + config.getId() + "." + property);
                                 }
+                                // 【properties 配置】获取不到，其次不带 `Config#id` 的配置中获取，例如：`dubbo.application.name` 。
                                 if (value == null || value.length() == 0) {
                                     value = ConfigUtils.getProperty(prefix + property);
                                 }
+                                // 【properties 配置】老版本兼容，获取不到，最后不带 `Config#id` 的配置中获取，例如：`dubbo.protocol.name` 。
                                 if (value == null || value.length() == 0) {
                                     String legacyKey = legacyProperties.get(prefix + property);
                                     if (legacyKey != null && legacyKey.length() > 0) {
@@ -147,16 +170,25 @@ public abstract class AbstractConfig implements Serializable {
                             }
                         }
                     }
+                    // 获取到值，进行反射设置。
                     if (value != null && value.length() > 0) {
                         method.invoke(config, convertPrimitive(method.getParameterTypes()[0], value));
                     }
                 }
             } catch (Exception e) {
+                //逻辑中间发生异常，不抛出异常，仅打印错误日志
                 logger.error(e.getMessage(), e);
             }
         }
     }
 
+    /**
+     * 8:  * 获取类名对应的属性标签，例如，ServiceConfig 对应为 service 。
+     * 9:  *
+     * 10:  * @param cls 类名
+     * 11:  * @return 标签
+     * 12:
+     */
     private static String getTagName(Class<?> cls) {
         String tag = cls.getSimpleName();
         for (String suffix : SUFFIXES) {

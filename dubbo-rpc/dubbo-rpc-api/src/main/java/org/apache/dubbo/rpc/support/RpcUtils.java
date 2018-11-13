@@ -196,6 +196,12 @@ public class RpcUtils {
         return Boolean.TRUE.toString().equals(inv.getAttachment(Constants.FUTURE_RETURNTYPE_KEY));
     }
 
+
+    /**
+     * 是否有异步返回值(future)
+     * @param method
+     * @return
+     */
     public static boolean hasFutureReturnType(Method method) {
         return CompletableFuture.class.isAssignableFrom(method.getReturnType());
     }
