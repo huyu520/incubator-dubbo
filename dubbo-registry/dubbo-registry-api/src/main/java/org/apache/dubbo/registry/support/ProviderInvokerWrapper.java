@@ -23,16 +23,33 @@ import org.apache.dubbo.rpc.Result;
 import org.apache.dubbo.rpc.RpcException;
 
 /**
+ * 服务提供者 Invoker Wrapper
+ *
  * @date 2017/11/23
  */
 public class ProviderInvokerWrapper<T> implements Invoker {
+    /**
+     * Invoker 对象
+     */
     private Invoker<T> invoker;
+    /**
+     * 原始 URL
+     */
     private URL originUrl;
+    /**
+     * 注册中心 URL
+     */
     private URL registryUrl;
+    /**
+     * 服务提供者 URL
+     */
     private URL providerUrl;
+    /**
+     * 是否注册（例如 isReg 状态属性，可以在使用下线服务命令后，标记为 false ）
+     */
     private volatile boolean isReg;
 
-    public ProviderInvokerWrapper(Invoker<T> invoker,URL registryUrl,URL providerUrl) {
+    public ProviderInvokerWrapper(Invoker<T> invoker, URL registryUrl, URL providerUrl) {
         this.invoker = invoker;
         this.originUrl = URL.valueOf(invoker.getUrl().toFullString());
         this.registryUrl = URL.valueOf(registryUrl.toFullString());

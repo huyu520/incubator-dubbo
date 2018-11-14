@@ -27,21 +27,10 @@ import org.apache.dubbo.common.utils.UrlUtils;
 import org.apache.dubbo.registry.NotifyListener;
 import org.apache.dubbo.registry.Registry;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -51,27 +40,62 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * AbstractRegistry. (SPI, Prototype, ThreadSafe)
- *
+ * <p>
+ * 通用的注册、订阅、查询、通知等方法。
+ * 持久化注册数据到文件，以 properties 格式存储。应用于，重启时，无法从注册中心加载服务提供者列表等信息时，从该文件中读取。
  */
 public abstract class AbstractRegistry implements Registry {
-
+    // URL地址分隔符，用于文件缓存中，服务提供者URL分隔
     // URL address separator, used in file cache, service provider URL separation
     private static final char URL_SEPARATOR = ' ';
+
+    // URL地址分隔正则表达式，用于解析文件缓存中服务提供者URL列表
     // URL address separated regular expression for parsing the service provider URL list in the file cache
     private static final String URL_SPLIT = "\\s+";
     // Log output
     protected final Logger logger = LoggerFactory.getLogger(getClass());
+    /**
+     * 本地磁盘缓存。
+     * <p>
+     * 1. 其中特殊的 key 值 .registies 记录注册中心列表
+     * 2. 其它均为 {@link #notified} 服务提供者列表
+     */
     // Local disk cache, where the special key value.registies records the list of registry centers, and the others are the list of notified service providers
     private final Properties properties = new Properties();
+
+    /**
+     * 注册中心缓存写入执行器。
+     * <p>
+     * 线程数=1
+     */
     // File cache timing writing
     private final ExecutorService registryCacheExecutor = Executors.newFixedThreadPool(1, new NamedThreadFactory("DubboSaveRegistryCache", true));
     // Is it synchronized to save the file
     private final boolean syncSaveFile;
+    //因为每次写入 file 是全量，而不是增量写入，通过版本号，避免老版本覆盖新版本。
     private final AtomicLong lastCacheChanged = new AtomicLong();
+
+    /**
+     * 已注册 URL 集合。
+     * <p>
+     * 注意，注册的 URL 不仅仅可以是服务提供者的，也可以是服务消费者的
+     */
     private final Set<URL> registered = new ConcurrentHashSet<URL>();
+    /**
+     * 订阅 URL 的监听器集合
+     */
     private final ConcurrentMap<URL, Set<NotifyListener>> subscribed = new ConcurrentHashMap<URL, Set<NotifyListener>>();
+    /**
+     * 被通知的 URL 集合
+     */
     private final ConcurrentMap<URL, Map<String, List<URL>>> notified = new ConcurrentHashMap<URL, Map<String, List<URL>>>();
+    /**
+     * 注册中心 URL
+     */
     private URL registryUrl;
+    /**
+     * 本地磁盘缓存文件，缓存注册中心的数
+     */
     // Local disk cache file
     private File file;
 
@@ -90,7 +114,9 @@ public abstract class AbstractRegistry implements Registry {
             }
         }
         this.file = file;
+        // 加载本地磁盘缓存文件到内存缓存
         loadProperties();
+        // 通知监听器，URL 变化结果
         notify(url.getBackupUrls());
     }
 
@@ -264,6 +290,13 @@ public abstract class AbstractRegistry implements Registry {
         return result;
     }
 
+    /**
+     * 从实现上，我们可以看出，并未向注册中心发起注册，仅仅是添加到 registered 中，进行状态的维护。实际上，真正的实现在 FailbackRegistry 类中。
+     *
+     * @param url Registration information , is not allowed to be empty, e.g: dubbo://10.20.153.10/org.apache.dubbo.foo.BarService?version=1.0.0&application=kylin
+     *            <p>
+     *            <p>
+     */
     @Override
     public void register(URL url) {
         if (url == null) {
@@ -322,6 +355,11 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 在注册中心断开，重连成功，调用 #recover() 方法，进行恢复注册和订阅。
+     *
+     * @throws Exception
+     */
     protected void recover() throws Exception {
         // register
         Set<URL> recoverRegistered = new HashSet<URL>(getRegistered());
@@ -373,6 +411,15 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 数据流向 `urls` => {@link #notified} => {@link #properties} => {@link #file}
+     * 向注册中心发起订阅后，会获取到全量数据，此时会被调用 #notify(...) 方法，即 Registry 获取到了全量数据
+     * 每次注册中心发生变更时，会调用 #notify(...) 方法，虽然变化是增量，调用这个方法的调用方，已经进行处理，传入的 urls 依然是全量的。
+     *
+     * @param url      消费者 URL
+     * @param listener 监听器
+     * @param urls     通知的 URL 变化结果（全量数据）
+     */
     protected void notify(URL url, NotifyListener listener, List<URL> urls) {
         if (url == null) {
             throw new IllegalArgumentException("notify url == null");
@@ -447,6 +494,9 @@ public abstract class AbstractRegistry implements Registry {
         }
     }
 
+    /**
+     * 在 JVM 关闭时，调用 #destroy() 方法，进行取消注册和订阅。
+     */
     @Override
     public void destroy() {
         if (logger.isInfoEnabled()) {
